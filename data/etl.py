@@ -352,6 +352,9 @@ class SalesETLPipeline:
         for name, df in self.transformed_data.items():
             df_copy = df.copy()
             df_copy.columns = [col.lower() for col in df_copy.columns]
+            # Round all float columns to 2 decimal places
+            float_cols = df_copy.select_dtypes(include=['float64']).columns
+            df_copy[float_cols] = df_copy[float_cols].round(2)
             df_copy.to_sql(name, engine, if_exists='replace', index=False)
             logger.info(f"Loaded {name} table to MySQL")
 
