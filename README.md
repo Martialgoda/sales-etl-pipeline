@@ -22,10 +22,28 @@ This project demonstrates a complete data engineering workflow:
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
+## Data Cleaning Process
+
+The pipeline performs the following data quality transformations:
+
+| Step | Description | Records Affected |
+|------|-------------|------------------|
+| 1. Remove missing CustomerID | Records without customer attribution are removed | 135,080 removed |
+| 2. Remove missing Description | Products without descriptions are unusable | Minor removals |
+| 3. Convert CustomerID to integer | Fix float storage (17850.0 → 17850) | All records |
+| 4. Identify cancelled orders | Flag orders starting with 'C' (e.g., C536365) | Flagged, not removed |
+| 5. Remove invalid quantities/prices | Keep only Quantity > 0 AND UnitPrice > 0 | 40 removed |
+| 6. Calculate TotalAmount | `TotalAmount = Quantity * UnitPrice` | New column |
+| 7. Extract date components | Year, Month, DayOfWeek, Hour from InvoiceDate | New columns |
+| 8. Standardize text fields | Uppercase descriptions, title case countries | All text fields |
+| 9. Round float values | All monetary values rounded to 2 decimal places | All float columns |
+
+**Result**: 541,909 raw records → 406,789 cleaned records (75.1% retention)
+
 ## Features
 
 - Handles 500K+ transaction records
-- Data validation and cleaning (removes nulls, invalid values)
+- Comprehensive data validation and cleaning
 - Creates analytical summaries:
   - **Customer Summary**: Revenue, orders, and segments per customer
   - **Product Summary**: Sales metrics per product
@@ -33,11 +51,12 @@ This project demonstrates a complete data engineering workflow:
   - **Country Summary**: Geographic breakdown of sales
 - Multiple output formats (MySQL, PostgreSQL, SQLite, CSV, Parquet)
 - Configurable and extensible pipeline class
+- Environment variable support for secure credential management
 
 ## Tech Stack
 
 - **Python 3.x**
-- **Pandas** - Data manipulation
+- **Pandas** - Data manipulation and cleaning
 - **SQLAlchemy** - Database connectivity
 - **MySQL** - Data warehouse
 - **NumPy** - Numerical operations
@@ -46,7 +65,7 @@ This project demonstrates a complete data engineering workflow:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/sales-etl-pipeline.git
+git clone https://github.com/Martialgoda/sales-etl-pipeline.git
 cd sales-etl-pipeline
 ```
 
@@ -60,7 +79,14 @@ pip install -r data/requirements.txt
 CREATE DATABASE sales_etl;
 ```
 
-4. Configure database credentials in `data/etl.py` or use environment variables.
+4. Set environment variables for database credentials:
+```bash
+export MYSQL_HOST=localhost
+export MYSQL_PORT=3306
+export MYSQL_DATABASE=sales_etl
+export MYSQL_USER=root
+export MYSQL_PASSWORD=your_password
+```
 
 ## Usage
 
@@ -94,11 +120,11 @@ summary = pipeline.run(output_formats=['mysql'], mysql_config=mysql_config)
 
 | Table | Records | Description |
 |-------|---------|-------------|
-| `transactions` | 406,789 | Cleaned sales transactions |
+| `transactions` | 406,789 | Cleaned sales transactions with calculated fields |
 | `customer_summary` | 4,338 | Customer metrics and segments (Bronze/Silver/Gold/Platinum) |
-| `product_summary` | 3,894 | Product sales rankings |
-| `daily_sales` | 305 | Daily revenue with moving averages |
-| `country_summary` | 37 | Revenue breakdown by country |
+| `product_summary` | 3,894 | Product sales rankings by revenue |
+| `daily_sales` | 305 | Daily revenue with 7-day and 30-day moving averages |
+| `country_summary` | 37 | Revenue breakdown by country with market share |
 
 ## Sample Queries
 
@@ -119,6 +145,12 @@ SELECT date, revenue, revenue_7dma
 FROM daily_sales
 ORDER BY date DESC
 LIMIT 30;
+
+-- Top selling products
+SELECT stockcode, description, totalrevenue, totalquantitysold
+FROM product_summary
+ORDER BY totalrevenue DESC
+LIMIT 10;
 ```
 
 ## Project Structure
@@ -126,6 +158,7 @@ LIMIT 30;
 ```
 sales_etl/
 ├── README.md
+├── .gitignore
 ├── data/
 │   ├── etl.py              # Main ETL pipeline
 │   ├── requirements.txt    # Python dependencies
